@@ -12,45 +12,46 @@ $password = az keyvault secret show `
     --query value `
     -o tsv
 
-# Find VMs starting with 'pkrvm'
+# Find VM(s) starting with 'pkrvm'
 $vms = az vm list -g $ResourceGroup `
     --query "[?starts_with(name, 'pkrvm')].[name, timeCreated]" `
     -o json | ConvertFrom-Json
 
-if ($vms.Count -eq 0) {
-    Write-Error "❌ No VMs starting with 'pkrvm' found in RG $ResourceGroup."
+if (-not $vms -or $vms.Count -eq 0) {
+    Write-Error "❌ No VM found with name starting 'pkrvm' in $ResourceGroup."
     exit 1
 }
 
-# Pick the earliest created VM
+# Sort by time created
 $targetVm = $vms | Sort-Object {[datetime]$_.Item(1)} | Select-Object -First 1
 $vmName = $targetVm[0]
 
-Write-Host "🔍 Target VM selected: $vmName"
+Write-Host "🔍 Selected VM: $vmName"
 
-# Escape password string for PowerShell inline
+# Build PowerShell command as single line
+# Must use backtick-escaped double quotes around password for remote VM
 $escapedPassword = $password.Replace('"', '`"')
+$resetCommand = "net user $Username `"$escapedPassword`""
 
-# Build inline script as plain text (single-line script block)
-$resetScript = "net user $Username `"$escapedPassword`""
-
-# Run command to reset password
+# Run it on the VM
 az vm run-command invoke `
   --resource-group $ResourceGroup `
   --name $vmName `
   --command-id RunPowerShellScript `
-  --scripts "$resetScript" | Out-Null
+  --scripts "$resetCommand" `
+  --query "value[0].message" `
+  -o tsv
 
-# Get the private IP of the VM
+# Get private IP
 $privateIp = az vm list-ip-addresses `
   --resource-group $ResourceGroup `
   --name $vmName `
   --query "[0].virtualMachine.network.privateIpAddresses[0]" `
   -o tsv
 
-# Display login info
+Write-Host ""
 Write-Host "===================================="
-Write-Host "🔐 Troubleshooting Login Details"
+Write-Host "🔐 Troubleshooting Login Info"
 Write-Host "VM Name:     $vmName"
 Write-Host "Private IP:  $privateIp"
 Write-Host "Username:    $Username"
