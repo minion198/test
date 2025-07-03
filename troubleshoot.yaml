@@ -1,0 +1,69 @@
+trigger: none
+
+parameters:
+  - name: resourceGroup
+    type: string
+    default: ''
+
+pool:
+  name: 'Self-Hosted'
+
+variables:
+  keyVaultName: 'yourKeyVault'
+  adminUsername: 'packerAdmin'
+  passwordSecretName: 'troubleshootPassword'
+
+stages:
+- stage: ApprovalGate
+  displayName: 'Wait for Approval'
+  jobs:
+  - deployment: ManualApproval
+    environment: 'Troubleshooting-Approval'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: echo "✅ Approval received. Proceeding..."
+
+- stage: ResetPassword
+  dependsOn: ApprovalGate
+  jobs:
+  - job: Reset
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Run Password Reset Script'
+      inputs:
+        azureSubscription: 'your-service-connection'
+        scriptType: 'ps'
+        scriptLocation: 'scriptPath'
+        scriptPath: 'scripts/Reset-TroubleshootingPassword.ps1'
+        arguments: >
+          -ResourceGroup "${{ parameters.resourceGroup }}"
+          -KeyVaultName "$(keyVaultName)"
+          -Username "$(adminUsername)"
+          -PasswordSecretName "$(passwordSecretName)"
+
+- stage: Cleanup
+  displayName: 'Cleanup All Resources (keep RG)'
+  dependsOn: ResetPassword
+  condition: succeeded()
+  approval:
+    approvals:
+      - reviewers:
+          - your.name@domain.com
+  jobs:
+  - job: CleanupRG
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Delete resources in RG'
+      inputs:
+        azureSubscription: 'your-service-connection'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "🧹 Deleting all resources inside ${{ parameters.resourceGroup }}..."
+          ids=$(az resource list -g ${{ parameters.resourceGroup }} --query "[].id" -o tsv)
+          for id in $ids; do
+            az resource delete --ids $id
+          done
+          echo "✅ Cleanup complete. Resource group retained."
