@@ -1,0 +1,11 @@
+# Optional failure notification
+- stage: BuildFailedNotice
+  displayName: 'Failure Instructions'
+  dependsOn: BuildImage
+  condition: failed()
+  jobs:
+  - job: Message
+    steps:
+    - script: |
+        echo "⚠️ AIB Image Build FAILED."
+        echo "👉 Please run the 'Troubleshooting Pipeline' to reset password and clean up the resources."
