@@ -1,0 +1,14 @@
+# quick view
+az vmss list-instances -g <rg> -n <vmss> --expand instanceView \
+  --query "[].{id:instanceId, health:instanceView.vmHealth.status.code, power:instanceView.statuses[-1].displayStatus}" -o table
+
+# see extension messages (great for screenshots)
+az vmss list-instances -g <rg> -n <vmss> --expand instanceView \
+  --query "[].{id:instanceId, msg:join(' | ', instanceView.extensions[].statuses[-1].message)}" -o table
+
+
+az vmss show -g <rg> -n <vmss> --query "automaticRepairsPolicy" -o json
+
+
+az vmss list-instances -g <rg> -n <vmss> --expand instanceView \
+  --query "[].{id:instanceId, latest:latestModelApplied, ext:instanceView.extensions[].name}" -o table
