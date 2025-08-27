@@ -1,0 +1,20 @@
+az vmss update \
+  -g <rg> -n <vmss> \
+  --set upgradePolicy.mode=Rolling \
+  --max-batch-instance-percent 20 \
+  --max-unhealthy-instance-percent 20 \
+  --max-unhealthy-upgraded-instance-percent 20 \
+  --prioritize-unhealthy-instances true \
+  --pause-time-between-batches PT0S \
+  --max-surge true
+
+
+
+az vmss list-instances -g <rg> -n <vmss> -o table
+# run your image bump / apply model
+watch -n 5 az vmss list-instances -g <rg> -n <vmss> -o table
+
+
+# Change the VMSS model to 2.0.0 (example path)
+az vmss update -g <rg> -n <vmss> \
+  --set virtualMachineProfile.storageProfile.imageReference.id="/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/galleries/<gal>/images/<img>/versions/2.0.0"
